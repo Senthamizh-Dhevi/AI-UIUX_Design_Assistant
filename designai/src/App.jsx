@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import "./index.css";
 import generateDesign from "./services/aiService";
+import {
+  signUpWithEmail,
+  loginWithEmail,
+  loginWithGoogle,
+  logoutUser,
+  observeAuthState,
+} from "./services/authService";
 
 function App() {
   const [idea, setIdea] = useState("");
@@ -26,6 +33,25 @@ const [editMessage, setEditMessage] = useState("");
 const [designHistory, setDesignHistory] = useState([]);
 const [isSaved, setIsSaved] = useState(false);
 
+const [showAuth, setShowAuth] = useState(false);
+const [authMode, setAuthMode] = useState("login");
+
+const [authName, setAuthName] = useState("");
+const [authEmail, setAuthEmail] = useState("");
+const [authPassword, setAuthPassword] = useState("");
+
+const [authError, setAuthError] = useState("");
+const [authLoading, setAuthLoading] = useState(false);
+
+const [currentUser, setCurrentUser] = useState(null);
+
+useEffect(() => {
+  const unsubscribe = observeAuthState((user) => {
+    setCurrentUser(user);
+  });
+
+  return () => unsubscribe();
+}, []);
 useEffect(() => {
   const savedDesign = localStorage.getItem(
     "designai_saved_design"
@@ -156,27 +182,6 @@ const handleExportDesign = () => {
     return;
   }
 
-  const handleLoadSavedDesign = () => {
-  const savedDesign = localStorage.getItem(
-    "designai_saved_design"
-  );
-
-  if (!savedDesign) {
-    alert("No saved design found.");
-    return;
-  }
-
-  try {
-    const design = JSON.parse(savedDesign);
-
-    setResult(design);
-    setEditMessage("✦ Saved design loaded successfully");
-  } catch (error) {
-    console.error("Failed to load saved design:", error);
-    alert("Could not load the saved design.");
-  }
-};
-
   const designText = `
 DESIGN AI — UX DESIGN BLUEPRINT
 ================================
@@ -194,19 +199,29 @@ SOLUTION
 ${result.solution || "N/A"}
 
 TARGET USERS
-${(result.targetUsers || []).map((item) => `• ${item}`).join("\n")}
+${(result.targetUsers || [])
+  .map((item) => `• ${item}`)
+  .join("\n")}
 
 GOALS
-${(result.goals || []).map((item) => `• ${item}`).join("\n")}
+${(result.goals || [])
+  .map((item) => `• ${item}`)
+  .join("\n")}
 
 FEATURES
-${(result.features || []).map((item) => `• ${item}`).join("\n")}
+${(result.features || [])
+  .map((item) => `• ${item}`)
+  .join("\n")}
 
 PAGES
-${(result.pages || []).map((item) => `• ${item}`).join("\n")}
+${(result.pages || [])
+  .map((item) => `• ${item}`)
+  .join("\n")}
 
 USER FLOW
-${(result.userFlow || []).map((item) => `• ${item}`).join("\n")}
+${(result.userFlow || [])
+  .map((item) => `• ${item}`)
+  .join("\n")}
 
 DESIGN SYSTEM
 Style: ${result.designSystem?.style || "N/A"}
@@ -229,6 +244,32 @@ Font: ${result.designSystem?.fontStyle || "N/A"}
   link.click();
 
   URL.revokeObjectURL(url);
+};
+
+
+// =====================================
+// LOAD SAVED DESIGN
+// =====================================
+
+const handleLoadSavedDesign = () => {
+  const savedDesign = localStorage.getItem(
+    "designai_saved_design"
+  );
+
+  if (!savedDesign) {
+    alert("No saved design found.");
+    return;
+  }
+
+  try {
+    const design = JSON.parse(savedDesign);
+
+    setResult(design);
+    setEditMessage("✦ Saved design loaded successfully");
+  } catch (error) {
+    console.error("Failed to load saved design:", error);
+    alert("Could not load the saved design.");
+  }
 };
 
 const handleClearSavedDesign = () => {
@@ -276,6 +317,73 @@ useEffect(() => {
     window.removeEventListener("keydown", handleKeyDown);
   };
 }, []);
+
+const handleAuthSubmit = async (event) => {
+  event.preventDefault();
+
+  setAuthError("");
+  setAuthLoading(true);
+
+  try {
+    if (authMode === "signup") {
+      await signUpWithEmail(
+        authName,
+        authEmail,
+        authPassword
+      );
+    } else {
+      await loginWithEmail(
+        authEmail,
+        authPassword
+      );
+    }
+
+    setShowAuth(false);
+    setAuthName("");
+    setAuthEmail("");
+    setAuthPassword("");
+  } catch (error) {
+    console.error("Authentication error:", error);
+
+    setAuthError(
+      error.code === "auth/email-already-in-use"
+        ? "This email is already registered."
+        : error.code === "auth/invalid-credential"
+        ? "Invalid email or password."
+        : error.code === "auth/weak-password"
+        ? "Password should be at least 6 characters."
+        : "Something went wrong. Please try again."
+    );
+  } finally {
+    setAuthLoading(false);
+  }
+};
+
+const handleGoogleLogin = async () => {
+  setAuthError("");
+  setAuthLoading(true);
+
+  try {
+    await loginWithGoogle();
+    setShowAuth(false);
+  } catch (error) {
+    console.error("Google authentication error:", error);
+
+    setAuthError(
+      "Google sign-in failed. Please try again."
+    );
+  } finally {
+    setAuthLoading(false);
+  }
+};
+
+const handleLogout = async () => {
+  try {
+    await logoutUser();
+  } catch (error) {
+    console.error("Logout error:", error);
+  }
+};
 
 const handleResetWorkspace = () => {
   const confirmed = window.confirm(
@@ -695,6 +803,114 @@ const handleResetWorkspace = () => {
     );
   }
 
+if (!currentUser) {
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+
+        <div className="auth-logo">
+          ✦
+        </div>
+
+        <h1>Welcome to DesignAI</h1>
+
+        <p>
+          Sign in to start creating intelligent UI/UX designs.
+        </p>
+
+        <form onSubmit={handleAuthSubmit}>
+
+          {authMode === "signup" && (
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={authName}
+              onChange={(e) =>
+                setAuthName(e.target.value)
+              }
+              required
+            />
+          )}
+
+          <input
+            type="email"
+            placeholder="Email address"
+            value={authEmail}
+            onChange={(e) =>
+              setAuthEmail(e.target.value)
+            }
+            required
+          />
+
+          <input
+            type="password"
+            placeholder="Password"
+            value={authPassword}
+            onChange={(e) =>
+              setAuthPassword(e.target.value)
+            }
+            required
+          />
+
+          {authError && (
+            <p className="auth-error">
+              {authError}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="auth-primary-button"
+            disabled={authLoading}
+          >
+            {authLoading
+              ? "Please wait..."
+              : authMode === "login"
+              ? "Sign In"
+              : "Create Account"}
+          </button>
+
+        </form>
+
+        <div className="auth-divider">
+          <span>or</span>
+        </div>
+
+        <button
+          className="google-button"
+          onClick={handleGoogleLogin}
+          disabled={authLoading}
+        >
+          Continue with Google
+        </button>
+
+        <p className="auth-switch">
+          {authMode === "login"
+            ? "Don't have an account?"
+            : "Already have an account?"}
+
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode(
+                authMode === "login"
+                  ? "signup"
+                  : "login"
+              );
+
+              setAuthError("");
+            }}
+          >
+            {authMode === "login"
+              ? " Sign Up"
+              : " Sign In"}
+          </button>
+        </p>
+
+      </div>
+    </div>
+  );
+}
 
   /* =====================================
      DASHBOARD
@@ -773,17 +989,30 @@ const handleResetWorkspace = () => {
 
           <div className="user-card">
 
-            <div className="avatar">
-              SD
-            </div>
+  <div className="avatar">
+    {currentUser?.displayName
+      ? currentUser.displayName.charAt(0).toUpperCase()
+      : currentUser?.email?.charAt(0).toUpperCase() || "U"}
+  </div>
 
-            <div>
-              <strong>Senthamizh</strong>
-              <span>Free Plan</span>
-            </div>
+  <div className="user-details">
+    <strong>
+      {currentUser?.displayName || "User"}
+    </strong>
 
-          </div>
+    <span>
+      {currentUser?.email || "Free Plan"}
+    </span>
+  </div>
 
+  <button
+    className="logout-button"
+    onClick={handleLogout}
+  >
+    Logout
+  </button>
+
+</div>
         </div>
 
       </aside>
