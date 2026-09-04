@@ -2,6 +2,11 @@ import { useState, useEffect } from "react";
 import "./index.css";
 import generateDesign from "./services/aiService";
 import {
+  saveProject,
+  getUserProjects,
+  deleteProject,
+} from "./services/projectService";
+import {
   signUpWithEmail,
   loginWithEmail,
   loginWithGoogle,
@@ -45,6 +50,14 @@ const [authLoading, setAuthLoading] = useState(false);
 
 const [currentUser, setCurrentUser] = useState(null);
 
+const [projects, setProjects] = useState([]);
+const [projectsLoading, setProjectsLoading] = useState(false);
+
+
+// =====================================
+// AUTH STATE
+// =====================================
+
 useEffect(() => {
   const unsubscribe = observeAuthState((user) => {
     setCurrentUser(user);
@@ -52,6 +65,40 @@ useEffect(() => {
 
   return () => unsubscribe();
 }, []);
+
+
+// =====================================
+// LOAD FIRESTORE PROJECTS
+// =====================================
+
+useEffect(() => {
+  const loadProjects = async () => {
+    if (!currentUser) {
+      setProjects([]);
+      return;
+    }
+
+    setProjectsLoading(true);
+
+    try {
+      const userProjects = await getUserProjects(
+        currentUser.uid
+      );
+
+      setProjects(userProjects);
+    } catch (error) {
+      console.error(
+        "Failed to load projects:",
+        error
+      );
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  loadProjects();
+}, [currentUser]);
+
 useEffect(() => {
   const savedDesign = localStorage.getItem(
     "designai_saved_design"
@@ -78,12 +125,14 @@ useEffect(() => {
     return;
   }
 
-  setIsEditing(true);
+  setIsGenerating(true);
 
-setDesignHistory((prev) => [
-  ...prev,
-  result,
-]);
+if (result) {
+  setDesignHistory((prev) => [
+    ...prev,
+    result,
+  ]);
+}
 
 try {
     const design = await generateDesign({
@@ -448,14 +497,39 @@ const handleResetWorkspace = () => {
 
             <button
   className="secondary-button"
-  onClick={() => {
-    localStorage.setItem(
-      "designai_saved_design",
-      JSON.stringify(result)
-    );
+  onClick={async () => {
+    if (!currentUser) {
+      setEditMessage("Please sign in to save your project.");
+      return;
+    }
 
-    setEditMessage("✦ Design saved successfully");
-    setIsSaved(true);
+    try {
+      await saveProject(
+        currentUser.uid,
+        result
+      );
+
+      // Keep local save for now as backup
+      localStorage.setItem(
+        "designai_saved_design",
+        JSON.stringify(result)
+      );
+
+      setIsSaved(true);
+      setEditMessage(
+        "✦ Project saved to your cloud workspace"
+      );
+
+    } catch (error) {
+      console.error(
+        "Failed to save project:",
+        error
+      );
+
+      setEditMessage(
+        "Unable to save project. Please try again."
+      );
+    }
   }}
 >
   {isSaved ? "✓ Saved" : "Save"}
