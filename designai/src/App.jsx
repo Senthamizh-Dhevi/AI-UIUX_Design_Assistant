@@ -51,6 +51,8 @@ const [authLoading, setAuthLoading] = useState(false);
 const [currentUser, setCurrentUser] = useState(null);
 
 const [projects, setProjects] = useState([]);
+const [previewMode, setPreviewMode] = useState("desktop");
+const [toast, setToast] = useState("");
 const [projectsLoading, setProjectsLoading] = useState(false);
 
 
@@ -459,6 +461,11 @@ const handleResetWorkspace = () => {
   if (result) {
     return (
       <div className="studio">
+        {toast && (
+  <div className="toast">
+    {toast}
+  </div>
+)}
 
         {/* Studio Header */}
 
@@ -519,6 +526,8 @@ const handleResetWorkspace = () => {
       setEditMessage(
         "✦ Project saved to your cloud workspace"
       );
+      console.log("TOAST TRIGGERED");
+setToast("✓ Project saved successfully");
 
     } catch (error) {
       console.error(
@@ -555,10 +564,6 @@ const handleResetWorkspace = () => {
 >
   Reset
 </button>
-
-            <button className="primary-small-button">
-              Export
-            </button>
 
           </div>
           <div className="keyboard-hint">
@@ -728,19 +733,28 @@ const handleResetWorkspace = () => {
 
               <div className="device-switcher">
 
-                <button className="device-active">
-                  Desktop
-                </button>
+  <button
+    className={previewMode === "desktop" ? "device-active" : ""}
+    onClick={() => setPreviewMode("desktop")}
+  >
+    Desktop
+  </button>
 
-                <button>
-                  Tablet
-                </button>
+  <button
+    className={previewMode === "tablet" ? "device-active" : ""}
+    onClick={() => setPreviewMode("tablet")}
+  >
+    Tablet
+  </button>
 
-                <button>
-                  Mobile
-                </button>
+  <button
+    className={previewMode === "mobile" ? "device-active" : ""}
+    onClick={() => setPreviewMode("mobile")}
+  >
+    Mobile
+  </button>
 
-              </div>
+</div>
 
             </div>
 
@@ -750,11 +764,11 @@ const handleResetWorkspace = () => {
             <div className="prototype-container">
 
               <PrototypePreview
-                title={result.projectName}
-                audience={result.audience}
-                result={result}
-              />
-
+  title={result.projectName}
+  audience={result.audience}
+  result={result}
+  previewMode={previewMode}
+/>
             </div>
 
 {/* AI EDITOR */}
@@ -986,11 +1000,18 @@ if (!currentUser) {
   );
 }
 
-  /* =====================================
+    /* =====================================
      DASHBOARD
   ===================================== */
 
   return (
+  <>
+    {toast && (
+      <div className="toast">
+        {toast}
+      </div>
+    )}
+
     <div className="app">
 
       {/* Sidebar */}
@@ -1023,10 +1044,19 @@ if (!currentUser) {
             AI Designer
           </button>
 
-          <button className="nav-item">
-            <span>◇</span>
-            Projects
-          </button>
+          <button
+  className="nav-item"
+  onClick={() => {
+    document
+      .getElementById("projects-section")
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
+  }}
+>
+  <span>◇</span>
+  Projects
+</button>
 
           <button className="nav-item">
             <span>▧</span>
@@ -1314,7 +1344,7 @@ if (!currentUser) {
 
               <div>
                 <span>AI Designs</span>
-                <strong>24</strong>
+                <strong>{projects.length}</strong>
               </div>
 
             </div>
@@ -1328,7 +1358,7 @@ if (!currentUser) {
 
               <div>
                 <span>Projects</span>
-                <strong>8</strong>
+                <strong>{projects.length}</strong>
               </div>
 
             </div>
@@ -1352,7 +1382,10 @@ if (!currentUser) {
 
           {/* Recent Projects */}
 
-          <section className="projects-section">
+          <section
+  id="projects-section"
+  className="projects-section"
+>
 
             <div className="section-header">
 
@@ -1373,36 +1406,73 @@ if (!currentUser) {
 
             <div className="project-grid">
 
-              <ProjectCard
-                title="CareerTrack"
-                type="Web Application"
-                date="Today"
-                color="purple"
-              />
+  {projectsLoading ? (
+    <p>Loading projects...</p>
+  ) : projects.length > 0 ? (
+    projects.map((project, index) => (
+      <ProjectCard
+  key={project.id}
+  title={project.projectName || "Untitled Project"}
+  type={
+    project.design?.platform ||
+    "Web Application"
+  }
+  date="Saved project"
+  color={
+    ["purple", "orange", "blue"][index % 3]
+  }
+  project={project}
+  onOpen={() => {
+    setResult(project.design);
+    setIsSaved(true);
+  }}
+  onDelete={async () => {
+  const confirmed = window.confirm(
+    `Delete "${project.projectName}"?`
+  );
 
-              <ProjectCard
-                title="Foodly"
-                type="Mobile Application"
-                date="Yesterday"
-                color="orange"
-              />
+  if (!confirmed) {
+    return;
+  }
+console.log("Deleting project:", project.id);
+  try {
+    await deleteProject(project.id);
 
-              <ProjectCard
-                title="TravelAI"
-                type="Web Application"
-                date="2 days ago"
-                color="blue"
-              />
+    setProjects((prev) =>
+      prev.filter(
+        (item) => item.id !== project.id
+      )
+    );
 
-            </div>
+    setEditMessage("✦ Project deleted successfully");
+  } catch (error) {
+    console.error(
+      "Failed to delete project:",
+      error
+    );
+
+    setEditMessage(
+      "Unable to delete project. Please try again."
+    );
+  }
+}}
+/>
+
+    ))
+  ) : (
+    <p>No saved projects yet.</p>
+  )}
+
+</div>
 
           </section>
 
         </section>
 
-      </main>
+           </main>
 
     </div>
+  </>
   );
 }
 
@@ -1414,10 +1484,11 @@ if (!currentUser) {
 function PrototypePreview({
   title,
   audience,
-  result
+  result,
+  previewMode
 }) {
   return (
-    <div className="generated-prototype">
+    <div className={`generated-prototype ${previewMode}`}>
 
       {/* Navbar */}
 
@@ -1571,10 +1642,18 @@ function ProjectCard({
   title,
   type,
   date,
-  color
+  color,
+  project,
+  onOpen,
+  onDelete
 }) {
   return (
-    <div className="project-card">
+    <div
+  className="project-card"
+  onClick={onOpen}
+  role="button"
+  tabIndex={0}
+>
 
       <div
         className={`project-preview ${color}`}
@@ -1615,7 +1694,17 @@ function ProjectCard({
 
       </div>
 
-    </div>
+      <button
+  className="delete-project-btn"
+  onClick={(event) => {
+    event.stopPropagation();
+    onDelete();
+  }}
+>
+  Delete
+</button>
+
+        </div>
   );
 }
 

@@ -1481,6 +1481,22 @@ button {
   overflow: hidden;
 }
 
+.generated-prototype.desktop {
+  width: 100%;
+}
+
+.generated-prototype.tablet {
+  width: 768px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.generated-prototype.mobile {
+  width: 390px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
 
 /* PROTOTYPE NAV */
 
@@ -1946,10 +1962,13 @@ button {
     padding: 25px;
   }
 
-  .studio-actions .secondary-button {
-    display: none;
+    .studio-actions {
+    flex-wrap: wrap;
   }
 
+  .studio-actions .secondary-button {
+    display: inline-flex;
+  }
 }
 
 /* =====================================
@@ -2493,4 +2512,21 @@ button {
 .logout-button:hover {
   background: #f3f4f6;
   color: #111827;
+}
+
+.toast {
+  position: fixed !important;
+  top: 30px !important;
+  right: 30px !important;
+  z-index: 999999 !important;
+
+  display: block !important;
+  padding: 15px 22px !important;
+
+  background: black !important;
+  color: white !important;
+
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
 }
