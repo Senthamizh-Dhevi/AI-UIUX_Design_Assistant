@@ -36,6 +36,8 @@ function App() {
 const [isEditing, setIsEditing] = useState(false);
 const [editMessage, setEditMessage] = useState("");
 const [designHistory, setDesignHistory] = useState([]);
+const prototypeCount =
+  designHistory.length + (result ? 1 : 0);
 const [isSaved, setIsSaved] = useState(false);
 
 const [showAuth, setShowAuth] = useState(false);
@@ -51,8 +53,21 @@ const [authLoading, setAuthLoading] = useState(false);
 const [currentUser, setCurrentUser] = useState(null);
 
 const [projects, setProjects] = useState([]);
+const [projectSearch, setProjectSearch] = useState("");
+const [projectFilter, setProjectFilter] = useState("All");
+
 const [previewMode, setPreviewMode] = useState("desktop");
 const [toast, setToast] = useState("");
+useEffect(() => {
+  if (!toast) return;
+
+  const timer = setTimeout(() => {
+    setToast("");
+  }, 3000);
+
+  return () => clearTimeout(timer);
+}, [toast]);
+
 const [projectsLoading, setProjectsLoading] = useState(false);
 
 
@@ -302,24 +317,31 @@ Font: ${result.designSystem?.fontStyle || "N/A"}
 // LOAD SAVED DESIGN
 // =====================================
 
-const handleLoadSavedDesign = () => {
-  const savedDesign = localStorage.getItem(
-    "designai_saved_design"
-  );
-
-  if (!savedDesign) {
-    alert("No saved design found.");
+const handleLoadSavedDesign = async () => {
+  if (!currentUser) {
+    setEditMessage("Please sign in to load your cloud projects.");
     return;
   }
 
   try {
-    const design = JSON.parse(savedDesign);
+    const userProjects = await getUserProjects(currentUser.uid);
 
-    setResult(design);
-    setEditMessage("✦ Saved design loaded successfully");
+    if (userProjects.length === 0) {
+      setEditMessage("No saved cloud projects found.");
+      return;
+    }
+
+    const latestProject = userProjects[0];
+
+    setResult(latestProject.design);
+    setIsSaved(true);
+
+    setEditMessage("✦ Cloud project loaded successfully");
+    setToast("✓ Project loaded successfully");
   } catch (error) {
-    console.error("Failed to load saved design:", error);
-    alert("Could not load the saved design.");
+    console.error("Failed to load cloud project:", error);
+    setEditMessage("Unable to load your cloud project.");
+    setToast("✕ Failed to load project");
   }
 };
 
@@ -1336,7 +1358,17 @@ if (!currentUser) {
 
           <section className="stats">
 
-            <div className="stat-card">
+            <div
+  className="stat-card"
+  onClick={() => {
+    document
+      .getElementById("projects-section")
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
+  }}
+  style={{ cursor: "pointer" }}
+>
 
               <div className="stat-icon purple">
                 ✦
@@ -1350,7 +1382,17 @@ if (!currentUser) {
             </div>
 
 
-            <div className="stat-card">
+            <div
+  className="stat-card"
+  onClick={() => {
+    document
+      .getElementById("projects-section")
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
+  }}
+  style={{ cursor: "pointer" }}
+>
 
               <div className="stat-icon blue">
                 ◇
@@ -1372,7 +1414,7 @@ if (!currentUser) {
 
               <div>
                 <span>Prototypes</span>
-                <strong>16</strong>
+               <strong>{prototypeCount}</strong>
               </div>
 
             </div>
@@ -1397,19 +1439,81 @@ if (!currentUser) {
                 </p>
               </div>
 
-              <button className="view-all">
-                View all →
-              </button>
+              <button
+  className="view-all"
+  onClick={() => {
+    document
+      .getElementById("projects-section")
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
+  }}
+>
+  View all →
+</button>
+
+              <button
+  className="secondary-button"
+  onClick={handleLoadSavedDesign}
+>
+  ☁ Load Latest
+</button>
 
             </div>
 
+            <input
+  type="text"
+  className="project-search"
+  placeholder="Search your projects..."
+  value={projectSearch}
+  onChange={(event) => setProjectSearch(event.target.value)}
+/>
+
+<select
+  className="project-filter"
+  value={projectFilter}
+  onChange={(event) => setProjectFilter(event.target.value)}
+>
+  <option value="All">All Projects</option>
+
+  {[...new Set(
+    projects
+      .map((project) => project.design?.platform)
+      .filter(Boolean)
+  )].map((platform) => (
+    <option key={platform} value={platform}>
+      {platform}
+    </option>
+  ))}
+</select>
 
             <div className="project-grid">
 
   {projectsLoading ? (
     <p>Loading projects...</p>
-  ) : projects.length > 0 ? (
-    projects.map((project, index) => (
+  ) : projects.filter((project) => {
+  const matchesSearch = (project.projectName || "")
+    .toLowerCase()
+    .includes(projectSearch.toLowerCase());
+
+  const matchesFilter =
+    projectFilter === "All" ||
+    project.design?.platform === projectFilter;
+
+  return matchesSearch && matchesFilter;
+}).length > 0 ? (
+    projects.filter((project) => {
+  const matchesSearch = (project.projectName || "")
+    .toLowerCase()
+    .includes(projectSearch.toLowerCase());
+
+  const matchesFilter =
+    projectFilter === "All" ||
+    project.design?.platform === projectFilter;
+
+  return matchesSearch && matchesFilter;
+})
+  .map((project, index) => (
       <ProjectCard
   key={project.id}
   title={project.projectName || "Untitled Project"}
@@ -1460,7 +1564,25 @@ console.log("Deleting project:", project.id);
 
     ))
   ) : (
-    <p>No saved projects yet.</p>
+    <div className="empty-projects">
+  <h3>No saved projects yet</h3>
+
+  <p>
+    Create your first AI-powered design and it will appear here.
+  </p>
+
+  <button
+    className="primary-button"
+    onClick={() => {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }}
+  >
+    ✦ Create Your First Design
+  </button>
+</div>
   )}
 
 </div>
